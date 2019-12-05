@@ -136,6 +136,7 @@ class ServerlessAmplifyPlugin {
                     detailedResources.push(resource);   // We have all the details we need for this
                     break;
                 case 'AWS::ApiGateway::RestApi':
+                case 'AWS::ApiGatewayV2::Api':
                     this.log('debug', `Processing ${JSON.stringify(resource)}`);
                     detailedResources.push(resource);
                     break;
@@ -335,12 +336,13 @@ class ServerlessAmplifyPlugin {
             }
         }
 
-        let apigw = resources.filter(r => r.ResourceType === 'AWS::ApiGateway::RestApi');
+        let apigw = resources.filter(r => r.ResourceType === 'AWS::ApiGateway::RestApi' || r.ResourceType === 'AWS::ApiGatewayV2::Api' );
         if (apigw.length > 0) {
             let apiRecords = {};
             apigw.forEach((v) => {
+                const proto = v.ResourceType === 'AWS::ApiGateway::RestApi' ? 'https:' : 'wss:';
                 apiRecords[v.LogicalResourceId] = {
-                    Endpoint: `https://${v.PhysicalResourceId}.execute-api.${this.provider.getRegion()}.amazonaws.com/${this.provider.getStage()}`,
+                    Endpoint: `${proto}//${v.PhysicalResourceId}.execute-api.${this.provider.getRegion()}.amazonaws.com/${this.provider.getStage()}`,
                     Region: this.provider.getRegion()
                 };
             });
@@ -434,12 +436,13 @@ class ServerlessAmplifyPlugin {
             }
         }
 
-        let apigw = resources.filter(r => r.ResourceType === 'AWS::ApiGateway::RestApi');
+        let apigw = resources.filter(r => r.ResourceType === 'AWS::ApiGateway::RestApi' || r.ResourceType === 'AWS::ApiGatewayV2::Api' );
         if (apigw.length > 0) {
             let apiRecords = [];
             apigw.forEach((v) => {
+                const proto = v.ResourceType === 'AWS::ApiGateway::RestApi' ? 'https:' : 'wss:';
                 apiRecords.push({
-                    endpoint: `https://${v.PhysicalResourceId}.execute-api.${this.provider.getRegion()}.amazonaws.com/${this.provider.getStage()}`,
+                    endpoint: `${proto}//${v.PhysicalResourceId}.execute-api.${this.provider.getRegion()}.amazonaws.com/${this.provider.getStage()}`,
                     name: v.LogicalResourceId,
                     region: this.provider.getRegion()
                 });
