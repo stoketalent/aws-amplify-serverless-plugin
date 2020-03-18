@@ -266,6 +266,24 @@ class ServerlessAmplifyPlugin {
             }
         }
 
+        if (fileDetails.hasOwnProperty('secAppClient')) {
+            const secAppClient = resources.find(r => r.ResourceType === 'AWS::Cognito::UserPoolClient' && r.LogicalResourceId === fileDetails.secAppClient);
+            if (typeof secAppClient !== 'undefined') {
+                config.SecCognitoUserPool = {
+                    Default: {
+                        PoolId: secAppClient.metadata.UserPoolClient.UserPoolId,
+                        Region: secAppClient.metadata.UserPoolClient.UserPoolId.split('_')[0],
+                        AppClientId: secAppClient.metadata.UserPoolClient.ClientId
+                    }
+                };
+                if (secAppClient.metadata.UserPoolClient.hasOwnProperty('ClientSecret')) {
+                    config.CognitoUserPool.Default.AppClientSecret = secAppClient.metadata.UserPoolClient.ClientSecret
+                }
+            } else {
+                throw new Error(`Invalid secAppClient specified: ${fileDetails.secAppClient}`);
+            }
+        }
+
         const identityPools = resources.filter(r => r.ResourceType === 'AWS::Cognito::IdentityPool');
         const identityPoolForUserPool = fileDetails.hasOwnProperty('appClient')
             ? identityPools.find(r => r.metadata.CognitoIdentityProviders &&
@@ -305,6 +323,52 @@ class ServerlessAmplifyPlugin {
 
                 if ('www.amazon.com' in providers) {
                     config.AmazonSignin = {
+                        Permissions: "profile",
+                        ClientId: providers['www.amazon.com']
+                    };
+                }
+            }
+        }
+
+        const secIdentityPools = resources.filter(r => r.ResourceType === 'AWS::Cognito::IdentityPool');
+        const secIdentityPoolForUserPool = fileDetails.hasOwnProperty('secAppClient')
+            ? secIdentityPools.find(r => r.metadata.CognitoIdentityProviders &&
+                r.metadata.CognitoIdentityProviders.some(({ClientId}) => ClientId === config.SecCognitoUserPool.Default.AppClientId)
+            )
+            : undefined;
+        const secIdentityPool = secIdentityPoolForUserPool || secIdentityPools[1];
+        if (typeof secIdentityPool !== 'undefined') {
+            config.SecCredentialsProvider = {
+                CognitoIdentity: {
+                    Default: {
+                        Region: secIdentityPool.PhysicalResourceId.split(':')[0],
+                        PoolId: secIdentityPool.PhysicalResourceId
+                    }
+                }
+            };
+
+            if (typeof secIdentityPool.metadata.SupportedLoginProviders == 'object') {
+                const providers = secIdentityPool.metadata.SupportedLoginProviders;
+
+                // Each authentication provider that is supported for federation  has an entry in
+                // the SupportedLoginProviders that is a "magic" domain - constant for each provider.
+                // Once you know the provider domain, you can easily add new provider support.
+                if ('accounts.google.com' in providers) {
+                    config.SecGoogleSignin = {
+                        Permissions: 'email,profile,openid',
+                        'ClientId-WebApp': providers['accounts.google.com']
+                    };
+                }
+
+                if ('graph.facebook.com' in providers) {
+                    config.SecFacebookSignin = {
+                        Permissions: "public_profile",
+                        AppId: providers['graph.facebook.com']
+                    };
+                }
+
+                if ('www.amazon.com' in providers) {
+                    config.SecAmazonSignin = {
                         Permissions: "profile",
                         ClientId: providers['www.amazon.com']
                     };
@@ -375,6 +439,21 @@ class ServerlessAmplifyPlugin {
                 }
             } else {
                 throw new Error(`Invalid appClient specified: ${fileDetails.appClient}`);
+            }
+        }
+
+        if (fileDetails.hasOwnProperty('secAppClient')) {
+            const secAppClient = resources.find(r => r.ResourceType === 'AWS::Cognito::UserPoolClient' && r.LogicalResourceId === fileDetails.secAppClient);
+            if (typeof secAppClient !== 'undefined') {
+                config.sec_aws_cognito_region = secAppClient.metadata.UserPoolClient.UserPoolId.split('_')[0];
+                config.sec_aws_user_pools_id = secAppClient.metadata.UserPoolClient.UserPoolId;
+                config.sec_aws_user_pools_web_client_id = secAppClient.metadata.UserPoolClient.ClientId;
+        
+                if (secAppClient.metadata.UserPoolClient.hasOwnProperty('ClientSecret')) {
+                    config.sec_aws_user_pools_web_client_secret = secAppClient.metadata.UserPoolClient.ClientSecret;
+                }
+            } else {
+                throw new Error(`Invalid secAppClient specified: ${fileDetails.secAppClient}`);
             }
         }
 
